@@ -8534,6 +8534,114 @@ begin
   JSONObject.Free;
 end;
 
+function CategoriasToInSQL(const Categorias: string): string;
+var
+  Partes: TStringDynArray;
+  Parte: string;
+  ParteTrim: string;
+  Codigo: Integer;
+begin
+  Result := '';
+  Partes := SplitString(Categorias, ',');
+  for Parte in Partes do
+  begin
+    ParteTrim := Trim(Parte);
+    if (ParteTrim <> '') and TryStrToInt(ParteTrim, Codigo) then
+    begin
+      if Result <> '' then
+        Result := Result + ',';
+      Result := Result + Codigo.ToString;
+    end;
+  end;
+end;
+
+procedure DoGetRelatorioSaboresSAPCategoria(Req: THorseRequest;
+Res: THorseResponse; Next: TProc);
+var
+  conexao: TConexao;
+  CategoriasSQL: string;
+  DataIni: string;
+  DataFim: string;
+begin
+  CategoriasSQL := CategoriasToInSQL(Req.Params['categorias']);
+  if CategoriasSQL = '' then
+  begin
+    Res.Send('Informe uma ou mais categorias numericas separadas por virgula.')
+      .Status(400);
+    exit;
+  end;
+
+  DataIni := Trim(Req.Query['ini']);
+  DataFim := Trim(Req.Query['fim']);
+
+  conexao := TConexao.Create('DoGetRelatorioSaboresSAPCategoria');
+  try
+    conexao.SQL.Add('select');
+    conexao.SQL.Add('  tp.codigo as categoria_id,');
+    conexao.SQL.Add('  upper(tp.descricao) as categoria,');
+    conexao.SQL.Add('  prod.codigo as produto_id,');
+    conexao.SQL.Add('  upper(prod.nome_produto) as produto,');
+    conexao.SQL.Add('  min(case');
+    conexao.SQL.Add
+      ('    when upper(coalesce(pps.nomeclatura, "")) like "%OBSERVA%" or upper(coalesce(pps.nomeclatura, "")) like "%DUVID%" or upper(coalesce(pps.nomeclatura, "")) like "%ATEN%" then ""');
+    conexao.SQL.Add
+      ('    when paps.id is not null and pap.id_extra is not null then "extra"');
+    conexao.SQL.Add('    when sc.id is not null then "extra"');
+    conexao.SQL.Add('    when paps.id is not null then "adicional"');
+    conexao.SQL.Add('    else "outros"');
+    conexao.SQL.Add('  end) as tipo,');
+    conexao.SQL.Add('  min(case');
+    conexao.SQL.Add
+      ('    when upper(coalesce(pps.nomeclatura, "")) like "%OBSERVA%" or upper(coalesce(pps.nomeclatura, "")) like "%DUVID%" or upper(coalesce(pps.nomeclatura, "")) like "%ATEN%" then ""');
+    conexao.SQL.Add('    else upper(coalesce(pps.nomeclatura, ""))');
+    conexao.SQL.Add('  end) as grupo_sap,');
+    conexao.SQL.Add('  min(case');
+    conexao.SQL.Add
+      ('    when upper(coalesce(pps.nomeclatura, "")) like "%OBSERVA%" or upper(coalesce(pps.nomeclatura, "")) like "%DUVID%" or upper(coalesce(pps.nomeclatura, "")) like "%ATEN%" then ""');
+    conexao.SQL.Add('    else upper(coalesce(pps.descricao, ""))');
+    conexao.SQL.Add('  end) as item_sap,');
+    conexao.SQL.Add('  upper(coalesce(pps.nomeclatura, "")) as grupo_original,');
+    conexao.SQL.Add('  upper(coalesce(pps.descricao, "")) as item_original,');
+    conexao.SQL.Add('  count(*) as ocorrencias,');
+    conexao.SQL.Add('  sum(pp.quantidade) as quantidade,');
+    conexao.SQL.Add('  round(sum(coalesce(pps.valor, 0) * pp.quantidade), 2) as valor,');
+    conexao.SQL.Add('  max(case');
+    conexao.SQL.Add
+      ('    when upper(coalesce(pps.nomeclatura, "")) = "SABORES" or sc.id is not null then sc.ultima_compra');
+    conexao.SQL.Add('    when paps.id is not null then paps.ultima_compra');
+    conexao.SQL.Add('    else null');
+    conexao.SQL.Add('  end) as ultima_compra');
+    conexao.SQL.Add('from pedido_produto_sap pps');
+    conexao.SQL.Add
+      ('join pedido_produtos pp on pp.codigo = pps.codigo_pedido_produto');
+    conexao.SQL.Add('join pedido p on p.codigo = pp.codigo_pedido');
+    conexao.SQL.Add('join produto prod on prod.codigo = pp.codigo_produto');
+    conexao.SQL.Add('join tipo_produto tp on tp.codigo = prod.codigo_grupo');
+    conexao.SQL.Add
+      ('left join pro_adi_personalizado pap on (pap.id_produto = prod.codigo or pap.categoria = prod.codigo_grupo) and upper(pap.descricao) = upper(pps.nomeclatura)');
+    conexao.SQL.Add
+      ('left join pro_adi_personalizado_sabores paps on paps.id_pro_adi_personalizado = pap.id and upper(paps.nome) = upper(pps.descricao)');
+    conexao.SQL.Add
+      ('left join sabores_completo sc on (sc.id_produto = prod.codigo or sc.id_tipo_sabor = prod.codigo_grupo) and upper(sc.nome) = upper(pps.descricao)');
+    conexao.SQL.Add('where prod.codigo_grupo in (' + CategoriasSQL + ')');
+    conexao.SQL.Add('  and p.status > 0');
+    conexao.SQL.Add('  and p.codigo_pedido_dia > 0');
+    conexao.SQL.Add('  and coalesce(pps.valor, 0) <> 0');
+    if (DataIni <> '') and (DataFim <> '') then
+    begin
+      conexao.SQL.Add('  and p.data_pedido between :ini and :fim');
+      conexao.Parametros('ini', DataIni);
+      conexao.Parametros('fim', DataFim);
+    end;
+    conexao.SQL.Add
+      ('group by tp.codigo, tp.descricao, prod.codigo, prod.nome_produto, pps.nomeclatura, pps.descricao');
+    conexao.SQL.Add('order by categoria, quantidade desc, item_sap');
+    Res.Send<TJsonArray>(conexao.ConsultaSQL);
+  finally
+    conexao.Free;
+  end;
+end;
+
 procedure DoGravaVariosProdutos(Req: THorseRequest; Res: THorseResponse;
 Next: TProc);
 var
@@ -10195,6 +10303,8 @@ begin
   THorse.Get('/v2/pix/pendente', DoGetPixPendente);
   THorse.Get('/v2/dashboard/venda/:dataini/:datafim', DoGetDashBoardVenda);
   THorse.Post('/v2/dashboard/venda/:dataini/:datafim', DoGetDashboardVendaV2);
+  THorse.Get('/v2/relatorio/sabores-sap/:categorias',
+    DoGetRelatorioSaboresSAPCategoria);
   THorse.Get('/v2/status/site', DoGetStatusSite);
   THorse.Get('/v2/test/erro', DoGetTestErro);
   THorse.Post('/v2/status/site/close', DoPostStatusSiteClose);

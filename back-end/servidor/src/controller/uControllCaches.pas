@@ -165,7 +165,8 @@ begin
         conexao.SQL.Add('  MAX(s.descricao) AS descricao,');
         conexao.SQL.Add('  MAX(s.url) AS url,');
         conexao.SQL.Add('  UPPER(MAX(ts.nome)) AS tipo_sabor,');
-        conexao.SQL.Add('  MAX(s.id_tipo_sabor) AS id_tipo_sabor');
+        conexao.SQL.Add('  MAX(s.id_tipo_sabor) AS id_tipo_sabor,');
+        conexao.SQL.Add('  MAX(s.ultima_compra) AS ultima_compra');
         conexao.SQL.Add('FROM sabores_completo s');
         conexao.SQL.Add('LEFT JOIN tipo_sabor ts ON ts.id = s.id_tipo_sabor');
         conexao.SQL.Add('WHERE s.id_produto IN (' + CodigoProdutos + ')');
@@ -183,6 +184,9 @@ begin
           ObjetoJson.AddPair('description', Dados.FieldByName('descricao')
             .AsString);
           ObjetoJson.AddPair('status', Dados.FieldByName('ativo').AsInteger);
+          ObjetoJson.AddPair('ultimaCompra',
+            FormatDateTime('yyyy-mm-dd', Dados.FieldByName('ultima_compra')
+            .AsDateTime));
           ObjetoJson.AddPair('type', Dados.FieldByName('id_tipo_sabor')
             .AsString);
           ArrayProdutos := TJsonArray.Create;

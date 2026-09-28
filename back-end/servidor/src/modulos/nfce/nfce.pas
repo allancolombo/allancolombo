@@ -217,7 +217,7 @@ begin
   conexao := TConexao.Create('nfce');
 
   conexao.SQL.Add
-    ('update pedido set nfce_emite = 1 where data_pedido = curdate() and nfce_chave = "CONTINGÊNCIA"');
+    ('update pedido set nfce_emite = 1 where data_pedido = curdate() and nfce_chave = "CONTINGï¿½NCIA"');
   conexao.ExecuteSQL;
   conexao.SQL.Add
     ('SELECT * FROM pedido WHERE nfce_emite = 1 and id_caixa > 0  AND status > 0  AND data_pedido >= '
@@ -332,7 +332,7 @@ begin
   conexao.Parametros('codigo', Req.Params['codigo']);
   conexao.ExecuteSQL;
 
-  if (Req.Params['chave'] = 'CONTINGÊNCIA') then
+  if (Req.Params['chave'] = 'CONTINGï¿½NCIA') then
   begin
     conexao.SQL.Add
       ('UPDATE pedido SET nfce_status = "CONTINGENCIA", nfce_emite = 0 WHERE (codigo = :codigo or pedido_nfce = :codigo);');
@@ -511,12 +511,12 @@ begin
     RESTRequest.Client := RESTClient;
     RESTRequest.Response := RESTResponse;
     RESTRequest.Method := TRESTRequestMethod.rmPOST;
-    // Adiciona os parâmetros ao corpo da requisição
+    // Adiciona os parï¿½metros ao corpo da requisiï¿½ï¿½o
     RESTRequest.AddParameter('cnpj', CNPJ,
       TRESTRequestParameterKind.pkGETorPOST);
     RESTRequest.AddParameter('chaveNFCe', Chave,
       TRESTRequestParameterKind.pkGETorPOST);
-    // Executa a requisição
+    // Executa a requisiï¿½ï¿½o
     RESTRequest.Execute;
     // Verifica a resposta
     if RESTResponse.StatusCode = 200 then
@@ -525,7 +525,7 @@ begin
     end
     else
     begin
-      // ////////showmessage1('Erro na requisição. Código: ' + RESTResponse.StatusCode.ToString);
+      // ////////showmessage1('Erro na requisiï¿½ï¿½o. Cï¿½digo: ' + RESTResponse.StatusCode.ToString);
     end;
   finally
     RESTRequest.Free;
@@ -543,12 +543,12 @@ var
   idConsulta, idDoc: Integer;
   i: Integer;
 begin
-  conexao := TConexao.Create('nfce'); // usa o mesmo alias que tu já tens
+  conexao := TConexao.Create('nfce'); // usa o mesmo alias que tu jï¿½ tens
   JSONBody := nil;
   try
     JSONBody := TJSONObject.ParseJSONValue(Req.Body) as TJSONObject;
     if not Assigned(JSONBody) then
-      raise Exception.Create('JSON inválido.');
+      raise Exception.Create('JSON invï¿½lido.');
 
     // --- Bloco "consulta" ---
     JSONConsulta := JSONBody.GetValue('consulta') as TJSONObject;
@@ -669,6 +669,32 @@ begin
   end;
   Res.Send<TJSONObject>(ManifestarDFePorChave(Req.Params['chave'],
     Req.Params['tipo'], Justificativa));
+end;
+procedure DoEventoDFe(Req: THorseRequest; Res: THorseResponse; Next: TProc);
+var
+  Body: TJSONObject;
+  Chave, Tipo, Justificativa: String;
+begin
+  Chave := '';
+  Tipo := '';
+  Justificativa := '';
+  Body := TJSONObject.ParseJSONValue(Req.Body) as TJSONObject;
+  try
+    if Assigned(Body) then
+    begin
+      if Assigned(Body.GetValue('chave')) then
+        Chave := Body.GetValue('chave').Value;
+      if Assigned(Body.GetValue('tipo')) then
+        Tipo := Body.GetValue('tipo').Value;
+      if (Tipo = '') and Assigned(Body.GetValue('metodo')) then
+        Tipo := Body.GetValue('metodo').Value;
+      if Assigned(Body.GetValue('justificativa')) then
+        Justificativa := Body.GetValue('justificativa').Value;
+    end;
+  finally
+    Body.Free;
+  end;
+  Res.Send<TJSONObject>(ManifestarDFePorChave(Chave, Tipo, Justificativa));
 end;
 procedure DoConsultarXMLDFePorChave(Req: THorseRequest; Res: THorseResponse;
   Next: TProc);
@@ -948,6 +974,7 @@ begin
   THorse.Get('/dfe/xml/:chave', DoConsultarXMLDFePorChave);
   THorse.Post('/dfe/xml/:chave', DoConsultarXMLDFePorChave);
   THorse.Post('/dfe/importar/manual', DoPostSimularImportacaoDFeArquivo);
+  THorse.Post('/dfe/evento', DoEventoDFe);
   THorse.Post('/dfe/manifestar/:chave/:tipo', DoManifestarDFe);
   THorse.Get('/nfe/status-servico', DoConsultarStatusServicoNFe);
   THorse.Post('/nfe/status-servico', DoConsultarStatusServicoNFe);

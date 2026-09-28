@@ -1,1 +1,1 @@
-{"id":"73932412-099b-4c3b-996e-789f09cec50c","product":"servidor","version":"26.8.1.6","channel":"production","fileName":"servidor-26.8.1.6.zip","sha256":"8203516b8890e58fb3008949a65e132957d5c5e48688ad5588a7c064cc4e95b5","sizeBytes":8705670,"status":"pending"}
+curl: (22) The requested URL returned error: 401

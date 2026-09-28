@@ -2666,19 +2666,22 @@ var
   TipoNormalizado: String;
 begin
   TipoNormalizado := LowerCase(Trim(Tipo));
+  TipoNormalizado := StringReplace(TipoNormalizado, '_', '-', [rfReplaceAll]);
   Result := True;
-  if (TipoNormalizado = 'ciencia') or (TipoNormalizado = 'ci?ncia') then
+  if (TipoNormalizado = 'ciencia') or (TipoNormalizado = 'ci?ncia') or
+    (TipoNormalizado = '210210') then
   begin
     Evento := teManifDestCiencia;
     Descricao := 'Ciencia da Operacao';
   end
-  else if (TipoNormalizado = 'confirmacao') or (TipoNormalizado = 'confirma??o')
-  then
+  else if (TipoNormalizado = 'confirmacao') or
+    (TipoNormalizado = 'confirma??o') or (TipoNormalizado = '210200') then
   begin
     Evento := teManifDestConfirmacao;
     Descricao := 'Confirmacao da Operacao';
   end
-  else if TipoNormalizado = 'desconhecimento' then
+  else if (TipoNormalizado = 'desconhecimento') or
+    (TipoNormalizado = '210220') then
   begin
     Evento := teManifDestDesconhecimento;
     Descricao := 'Desconhecimento da Operacao';
@@ -2686,7 +2689,10 @@ begin
   else if (TipoNormalizado = 'nao-realizada') or
     (TipoNormalizado = 'n?o-realizada') or
     (TipoNormalizado = 'operacao-nao-realizada') or
-    (TipoNormalizado = 'op-nao-realizada') then
+    (TipoNormalizado = 'op-nao-realizada') or
+    (TipoNormalizado = 'cancelamento') or
+    (TipoNormalizado = 'cancelada') or
+    (TipoNormalizado = 'cancelado') or (TipoNormalizado = '210240') then
   begin
     Evento := teManifDestOperNaoRealizada;
     Descricao := 'Operacao nao Realizada';
@@ -2800,7 +2806,7 @@ begin
       'manifestacao_tipo = :tipo, ' +
       'manifestacao_status = ''AGUARDANDO_IMPORTACAO'', ' +
       'manifestacao_origem = :origem, manifestacao_data = NOW() ' +
-      'WHERE chave = :chave AND COALESCE(manifestada, 0) = 0');
+      'WHERE chave = :chave');
     Qry.ParamByName('tipo').AsString := Tipo;
     Qry.ParamByName('origem').AsString := Origem;
     Qry.ParamByName('chave').AsString := chave;

@@ -2710,6 +2710,52 @@ begin
     167:
       begin
         ExecultaSQL('ALTER TABLE usuario ADD COLUMN tempo_expiracao INT DEFAULT 12;');
+        ExecultaSQL('alter table pedido add updated_at datetime');
+      end;
+    168:
+      begin
+        ExecultaSQL
+          ('ALTER TABLE sabores_completo ADD COLUMN ultima_compra DATE NOT NULL DEFAULT ''2026-01-01'';');
+        ExecultaSQL
+          ('ALTER TABLE pro_adi_personalizado_sabores ADD COLUMN ultima_compra DATE NOT NULL DEFAULT ''2026-01-01'';');
+        ExecultaSQL
+          ('CREATE INDEX idx_sabores_completo_ultima_compra ON sabores_completo (ultima_compra);');
+        ExecultaSQL
+          ('CREATE INDEX idx_pro_adi_sabores_ultima_compra ON pro_adi_personalizado_sabores (ultima_compra);');
+        ExecultaSQL('DROP TRIGGER IF EXISTS trg_pps_ultima_compra;');
+        SQL := 'CREATE TRIGGER trg_pps_ultima_compra AFTER INSERT ON pedido_produto_sap FOR EACH ROW ' +
+          'BEGIN ' +
+          '  DECLARE v_produto INT DEFAULT 0; ' +
+          '  DECLARE v_categoria INT DEFAULT 0; ' +
+          '  DECLARE v_afetados INT DEFAULT 0; ' +
+          '  SELECT COALESCE(pp.codigo_produto, 0), COALESCE(prod.codigo_grupo, 0) ' +
+          '    INTO v_produto, v_categoria ' +
+          '    FROM pedido_produtos pp ' +
+          '    LEFT JOIN produto prod ON prod.codigo = pp.codigo_produto ' +
+          '   WHERE pp.codigo = NEW.codigo_pedido_produto ' +
+          '   LIMIT 1; ' +
+          '  IF UPPER(COALESCE(NEW.nomeclatura, '''')) = ''SABORES'' THEN ' +
+          '    UPDATE sabores_completo ' +
+          '       SET ultima_compra = CURDATE() ' +
+          '     WHERE id_produto = v_produto ' +
+          '       AND UPPER(nome) = UPPER(COALESCE(NEW.descricao, '''')); ' +
+          '  ELSE ' +
+          '    UPDATE pro_adi_personalizado_sabores paps ' +
+          '    JOIN pro_adi_personalizado pap ON pap.id = paps.id_pro_adi_personalizado ' +
+          '       SET paps.ultima_compra = CURDATE() ' +
+          '     WHERE (pap.id_produto = v_produto OR pap.categoria = v_categoria) ' +
+          '       AND UPPER(pap.descricao) = UPPER(COALESCE(NEW.nomeclatura, '''')) ' +
+          '       AND UPPER(paps.nome) = UPPER(COALESCE(NEW.descricao, '''')); ' +
+          '    SET v_afetados = ROW_COUNT(); ' +
+          '    IF v_afetados = 0 THEN ' +
+          '      UPDATE sabores_completo ' +
+          '         SET ultima_compra = CURDATE() ' +
+          '       WHERE id_produto = v_produto ' +
+          '         AND UPPER(nome) = UPPER(COALESCE(NEW.descricao, '''')); ' +
+          '    END IF; ' +
+          '  END IF; ' +
+          'END;';
+        ExecultaSQL(SQL);
       end;
     99999999:
       begin
@@ -2724,7 +2770,7 @@ end;
 
 function TSQL.VersaoExe: String;
 begin
-  Result := '167';
+  Result := '168';
 end;
 
 end.
